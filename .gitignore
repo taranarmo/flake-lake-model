@@ -1,0 +1,24 @@
+# Build artifacts
+build/
+*.o
+*.mod
+*.a
+*.so
+*.dylib
+*.dll
+*.exe
+
+# Simulation outputs
+*.rslt
+examples/*/*.rslt
+
+# Editor & IDE
+.vscode/
+.idea/
+*.swp
+*~
+
+# Nix
+.direnv/
+result
+result-*
