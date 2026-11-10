@@ -24,9 +24,14 @@ MODULE_OBJS = $(patsubst $(SRC_DIR)/%.f90,$(OBJ_DIR)/%.o,$(MODULE_SRCS))
 TARGET = $(BIN_DIR)/flake
 LIBTARGET = $(BUILD_DIR)/libflake.a
 
-.PHONY: all clean test install
+.PHONY: all clean test install wasm test-wasm
 
 all: $(TARGET) $(LIBTARGET)
+
+wasm:
+	./test/build_and_test_wasm.sh
+
+test-wasm: wasm
 
 $(TARGET): $(LIBTARGET) $(APP_DIR)/flake_cli.f90 | $(BIN_DIR)
 	$(FC) $(FFLAGS) -I$(OBJ_DIR) $(APP_DIR)/flake_cli.f90 $(LIBTARGET) -o $@

@@ -34,12 +34,39 @@
           doCheck = true;
         };
 
+        packages.wasm = pkgs.stdenv.mkDerivation {
+          pname = "flake-wasm";
+          version = "1.0.0";
+          src = ./.;
+
+          nativeBuildInputs = [
+            pkgs.lfortran
+            pkgs.llvmPackages.llvm
+            pkgs.llvmPackages.lld
+            pkgs.nodejs
+          ];
+
+          buildPhase = ''
+            patchShebangs test/
+            ./test/build_and_test_wasm.sh
+          '';
+
+          installPhase = ''
+            mkdir -p $out/bin
+            cp build_wasm/flake.wasm $out/bin/
+          '';
+        };
+
         devShells.default = pkgs.mkShell {
           packages = with pkgs; [
             gfortran
             cmake
             ninja
             gnumake
+            lfortran
+            llvmPackages.llvm
+            llvmPackages.lld
+            nodejs
           ];
         };
       }
