@@ -18,19 +18,6 @@
 
           nativeBuildInputs = [ pkgs.gfortran pkgs.cmake ];
 
-          buildPhase = ''
-            cmake -B build -DCMAKE_INSTALL_PREFIX=$out
-            cmake --build build -j$NIX_BUILD_CORES
-          '';
-
-          checkPhase = ''
-            ctest --test-dir build --output-on-failure
-          '';
-
-          installPhase = ''
-            cmake --install build
-          '';
-
           doCheck = true;
         };
 
