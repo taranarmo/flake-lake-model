@@ -11,7 +11,7 @@ set(CMAKE_Fortran_STANDARD_REQUIRED ON)
 
 # Compiler warnings and optimization flags
 if(CMAKE_Fortran_COMPILER_ID MATCHES "GNU")
-  add_compile_options(-O3 -fPIC)
+  add_compile_options(-O3 -fPIC -ffree-line-length-none)
 endif()
 
 # Core library sources (in compilation order)

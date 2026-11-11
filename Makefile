@@ -1,5 +1,5 @@
 FC ?= gfortran
-FFLAGS ?= -O3 -fPIC
+FFLAGS ?= -O3 -fPIC -ffree-line-length-none
 PREFIX ?= /usr/local
 
 SRC_DIR = src
@@ -24,7 +24,7 @@ MODULE_OBJS = $(patsubst $(SRC_DIR)/%.f90,$(OBJ_DIR)/%.o,$(MODULE_SRCS))
 TARGET = $(BIN_DIR)/flake
 LIBTARGET = $(BUILD_DIR)/libflake.a
 
-.PHONY: all clean test install wasm test-wasm
+.PHONY: all clean test install wasm test-wasm docker docker-stream docker-test
 
 all: $(TARGET) $(LIBTARGET)
 
@@ -58,6 +58,17 @@ test: $(TARGET)
 clean:
 	rm -rf $(BUILD_DIR)
 	rm -f examples/*/*.rslt
+
+docker:
+	nix build .#docker
+	docker load < result && rm -f result
+
+docker-stream:
+	nix run .#dockerStream | docker load
+
+docker-test: docker
+	@echo "=== Running FLake Container Verification Test ==="
+	docker run --rm flake:latest /opt/flake/examples/Heiligensee80-96/Heiligensee80-96.nml
 
 install: $(TARGET) $(LIBTARGET)
 	install -d $(DESTDIR)$(PREFIX)/bin $(DESTDIR)$(PREFIX)/lib $(DESTDIR)$(PREFIX)/include/flake

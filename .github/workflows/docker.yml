@@ -1,0 +1,88 @@
+name: Docker Container CI & Publish
+
+on:
+  push:
+    branches: [ master, main ]
+    tags: [ 'v*' ]
+  pull_request:
+    branches: [ master, main ]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  packages: write
+
+jobs:
+  docker-nix:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install Nix
+        uses: cachix/install-nix-action@v30
+        with:
+          extra_nix_config: |
+            experimental-features = nix-command flakes
+
+      - name: Build Layered Docker Image via Nix
+        run: nix build .#docker
+
+      - name: Load image into Docker daemon
+        run: docker load < result
+
+      - name: Verify CLI help
+        run: docker run --rm flake:latest --help
+
+      - name: Run verification benchmark
+        run: |
+          docker run --rm flake:latest /opt/flake/examples/Heiligensee80-96/Heiligensee80-96.nml
+          docker run --rm flake:latest /opt/flake/examples/Mueggelsee80-96/Mueggelsee80-96.nml
+          docker run --rm flake:latest /opt/flake/examples/Stechlin94-98/Stechlin94-98.nml
+
+      - name: Test volume mounting and output generation
+        run: |
+          mkdir -p /tmp/test-vol
+          cp examples/Stechlin94-98/Stechlin94-98.nml /tmp/test-vol/
+          cp examples/Stechlin94-98/Stechlin94-98.dat /tmp/test-vol/
+          docker run --rm -v /tmp/test-vol:/workspace flake:latest Stechlin94-98.nml
+          test -s /tmp/test-vol/Stechlin94-98.rslt
+
+      - name: Log in to GitHub Container Registry
+        if: github.event_name != 'pull_request'
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Tag and Publish Nix Docker Image
+        if: github.event_name != 'pull_request'
+        run: |
+          IMAGE_NAME="ghcr.io/${{ github.repository_owner }}/flake-lake-model"
+          IMAGE_NAME=$(echo "$IMAGE_NAME" | tr '[:upper:]' '[:lower:]')
+          
+          if [[ "${{ github.ref }}" == refs/tags/* ]]; then
+            VERSION="${GITHUB_REF#refs/tags/}"
+            docker tag flake:latest "$IMAGE_NAME:$VERSION"
+            docker push "$IMAGE_NAME:$VERSION"
+          fi
+          
+          if [[ "${{ github.ref }}" == "refs/heads/master" || "${{ github.ref }}" == "refs/heads/main" ]]; then
+            docker tag flake:latest "$IMAGE_NAME:latest"
+            docker push "$IMAGE_NAME:latest"
+          fi
+
+  docker-fallback-alpine:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Build Alpine Dockerfile
+        run: docker build -t flake:alpine .
+
+      - name: Verify Alpine Dockerfile execution
+        run: |
+          docker run --rm flake:alpine --help
+          docker run --rm flake:alpine /opt/flake/examples/Heiligensee80-96/Heiligensee80-96.nml
