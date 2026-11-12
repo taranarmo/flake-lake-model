@@ -56,7 +56,7 @@ INTEGER (KIND = iintegers), PARAMETER :: &
 !  Define TYPE "opticpar_medium"
 TYPE opticpar_medium
   INTEGER (KIND = iintegers)                        ::   & 
-    nband_optic                                            ! Number of wave-length bands
+    nband_optic = 0_iintegers                              ! Number of wave-length bands
   REAL (KIND = ireals), DIMENSION (nband_optic_max) ::   & 
     frac_optic                                         , & ! Fractions of total radiation flux 
     extincoef_optic                                        ! Extinction coefficients 

@@ -24,7 +24,7 @@ PROGRAM flake_cli
     I_h_flk, I_bot_flk, I_intm_0_h_flk, I_intm_h_D_flk, &
     Q_star_flk, u_star_w_flk, w_star_sfc_flk, dMsnowdt_flk
   USE SfcFlx, ONLY: SfcFlx_lwradatm, SfcFlx_lwradwsfc, SfcFlx_momsenlat, &
-                    SfcFlx_spechum, c_lwrad_emis
+                    SfcFlx_spechum, SfcFlx_satwvpres, SfcFlx_rhoair, c_lwrad_emis
 
   IMPLICIT NONE
 
@@ -245,6 +245,11 @@ PROGRAM flake_cli
 
   opt_w = opticpar_water_ref
   opt_w%extincoef_optic(1) = extincoef_optic
+  ! Ice and snow optics are not configurable via the namelist; set them to the
+  ! opaque defaults explicitly. flake_interface preserves caller-provided
+  ! optical parameters, so uninitialized derived types must never be passed.
+  opt_i = opticpar_ice_opaque
+  opt_s = opticpar_snow_opaque
   opt_i = opticpar_ice_opaque
   opt_s = opticpar_snow_opaque
   alb_w = albedo_water_ref
@@ -306,11 +311,19 @@ PROGRAM flake_cli
                          T_snow_o, T_ice_o, T_mnw_o, T_wML_o, T_bot_o, T_B1_o, &
                          C_T_o, h_snow_o, h_ice_o, h_ML_o, H_B1_o, T_sfc_o)
 
-    ! Diagnostics
+    ! Diagnostics: Q_mom/Q_sens/Q_lat are not returned by flake_interface, so
+    ! SfcFlx_momsenlat is repeated here for output purposes with the same
+    ! inputs as the physics (previous-step surface temperature T_sfc).
     CALL SfcFlx_momsenlat(z_wind_m(1), z_Taqa_m(1), fetch_lk, &
                           U_a_in, T_a_k, q_a_in, T_sfc, P_a, h_ice, &
                           Q_mom, Q_sens, Q_lat, Q_watvap)
-    rho_air = P_a / (287.058_ireals * T_a_k)
+    ! Air density at the surface, matching the density used inside
+    ! SfcFlx_momsenlat: saturation specific humidity at T_sfc, then
+    ! SfcFlx_rhoair(T_s, q_s, P_a). Using the dry-air density at air
+    ! temperature would be inconsistent with Q_mom.
+    rho_air = SfcFlx_rhoair(T_sfc, &
+                            SfcFlx_spechum(SfcFlx_satwvpres(T_sfc, h_ice), P_a), &
+                            P_a)
     ufr_a   = SQRT(MAX(0.0_ireals, -Q_mom / rho_air))
     ufr_w   = u_star_w_flk
     Wconv   = w_star_sfc_flk
