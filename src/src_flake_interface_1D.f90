@@ -227,10 +227,10 @@ albedo_snow  = albedo_ice
 !  Set optical characteristics of the lake water, lake ice and snow
 !------------------------------------------------------------------------------
 
-! Use default values
-opticpar_water = opticpar_water_ref
-opticpar_ice   = opticpar_ice_opaque   ! Opaque ice
-opticpar_snow  = opticpar_snow_opaque  ! Opaque snow
+! Use default values only if not provided by caller
+IF (opticpar_water%nband_optic < 1) opticpar_water = opticpar_water_ref
+IF (opticpar_ice%nband_optic < 1)   opticpar_ice   = opticpar_ice_opaque   ! Opaque ice
+IF (opticpar_snow%nband_optic < 1)  opticpar_snow  = opticpar_snow_opaque  ! Opaque snow
 
 !------------------------------------------------------------------------------
 !  Set initial values
