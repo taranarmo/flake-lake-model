@@ -44,8 +44,8 @@ PROGRAM flake_cli
                                   U_a_in, T_a_in, q_a_in, P_a_in, &
                                   depth_w, fetch, depth_bs, T_bs, par_Coriolis, del_time, &
                                   T_snow_in, T_ice_in, T_mnw_in, T_wML_in, T_bot_in, T_B1_in, &
-                                  C_T_in, h_snow_in, h_ice_in, h_ML_in, H_B1_in, T_sfc_p, &
-                                  albedo_water, albedo_ice, albedo_snow
+                                  C_T_in, h_snow_in, h_ice_in, h_ML_in, H_B1_in, T_sfc_p
+      REAL(ireals), INTENT(INOUT) :: albedo_water, albedo_ice, albedo_snow
       TYPE(opticpar_medium), INTENT(INOUT) :: opticpar_water, opticpar_ice, opticpar_snow
       REAL(ireals), INTENT(OUT) :: T_snow_out, T_ice_out, T_mnw_out, T_wML_out, T_bot_out, T_B1_out, &
                                    C_T_out, h_snow_out, h_ice_out, h_ML_out, H_B1_out, T_sfc_n
@@ -248,8 +248,6 @@ PROGRAM flake_cli
   ! Ice and snow optics are not configurable via the namelist; set them to the
   ! opaque defaults explicitly. flake_interface preserves caller-provided
   ! optical parameters, so uninitialized derived types must never be passed.
-  opt_i = opticpar_ice_opaque
-  opt_s = opticpar_snow_opaque
   opt_i = opticpar_ice_opaque
   opt_s = opticpar_snow_opaque
   alb_w = albedo_water_ref

@@ -77,11 +77,25 @@ WebAssembly.instantiate(wasmBytes, imports).then(({ instance }) => {
   }
 
   function allocOptic(extin = 1.0) {
+    // Match wasm32 ABI layout for TYPE(opticpar_medium):
+    // 4-byte integer nband_optic + 4-byte alignment padding +
+    // 10 * 8-byte frac_optic + 10 * 8-byte extincoef_optic = 168 bytes.
+    const size = 168;
+    while (ptr + size > memory.buffer.byteLength) {
+      memory.grow(1);
+      mv = new DataView(memory.buffer);
+    }
     const p = ptr;
-    ptr += 4 + 10 * 8 + 10 * 8; // nband + fractions + extincoefs
+    ptr += size;
     mv.setInt32(p, 1, true);
-    mv.setFloat64(p + 4, 1.0, true);
-    mv.setFloat64(p + 4 + 80, extin, true);
+    mv.setFloat64(p + 8, 1.0, true);
+    for (let i = 1; i < 10; i++) {
+      mv.setFloat64(p + 8 + i * 8, 0.0, true);
+    }
+    mv.setFloat64(p + 88, extin, true);
+    for (let i = 1; i < 10; i++) {
+      mv.setFloat64(p + 88 + i * 8, 1e7, true);
+    }
     return p;
   }
 
