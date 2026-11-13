@@ -47,7 +47,7 @@ IMPLICIT NONE
 !
 ! Declarations
 
-LOGICAL, PARAMETER :: &
+LOGICAL :: &
   lflk_botsed_use   = .TRUE.         ! .TRUE. indicates that the bottom-sediment scheme is used
                                      ! to compute the depth penetrated by the thermal wave, 
                                      ! the temperature at this depth and the bottom heat flux.

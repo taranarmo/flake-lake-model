@@ -12,6 +12,7 @@ PROGRAM flake_cli
   USE flake_parameters, ONLY: tpl_T_f, tpl_rho_w_r
   USE flake_paramoptic_ref
   USE flake_albedo_ref
+  USE flake_configure, ONLY: lflk_botsed_use
   USE flake, ONLY: flake_driver, flake_radflux, &
     T_snow_p_flk, T_snow_n_flk, T_ice_p_flk, T_ice_n_flk, &
     T_mnw_p_flk, T_mnw_n_flk, T_wML_p_flk, T_wML_n_flk, &
@@ -23,9 +24,33 @@ PROGRAM flake_cli
     I_h_flk, I_bot_flk, I_intm_0_h_flk, I_intm_h_D_flk, &
     Q_star_flk, u_star_w_flk, w_star_sfc_flk, dMsnowdt_flk
   USE SfcFlx, ONLY: SfcFlx_lwradatm, SfcFlx_lwradwsfc, SfcFlx_momsenlat, &
-                    SfcFlx_spechum, c_lwrad_emis
+                    SfcFlx_spechum, SfcFlx_satwvpres, SfcFlx_rhoair, c_lwrad_emis
 
   IMPLICIT NONE
+
+  INTERFACE
+    SUBROUTINE flake_interface(dMsnowdt_in, I_atm_in, Q_atm_lw_in, height_u_in, height_tq_in, &
+                               U_a_in, T_a_in, q_a_in, P_a_in, &
+                               depth_w, fetch, depth_bs, T_bs, par_Coriolis, del_time, &
+                               T_snow_in, T_ice_in, T_mnw_in, T_wML_in, T_bot_in, T_B1_in, &
+                               C_T_in, h_snow_in, h_ice_in, h_ML_in, H_B1_in, T_sfc_p, &
+                               albedo_water, albedo_ice, albedo_snow, &
+                               opticpar_water, opticpar_ice, opticpar_snow, &
+                               T_snow_out, T_ice_out, T_mnw_out, T_wML_out, T_bot_out, T_B1_out, &
+                               C_T_out, h_snow_out, h_ice_out, h_ML_out, H_B1_out, T_sfc_n)
+      USE data_parameters, ONLY: ireals
+      USE flake_derivedtypes, ONLY: opticpar_medium
+      REAL(ireals), INTENT(IN) :: dMsnowdt_in, I_atm_in, Q_atm_lw_in, height_u_in, height_tq_in, &
+                                  U_a_in, T_a_in, q_a_in, P_a_in, &
+                                  depth_w, fetch, depth_bs, T_bs, par_Coriolis, del_time, &
+                                  T_snow_in, T_ice_in, T_mnw_in, T_wML_in, T_bot_in, T_B1_in, &
+                                  C_T_in, h_snow_in, h_ice_in, h_ML_in, H_B1_in, T_sfc_p
+      REAL(ireals), INTENT(INOUT) :: albedo_water, albedo_ice, albedo_snow
+      TYPE(opticpar_medium), INTENT(INOUT) :: opticpar_water, opticpar_ice, opticpar_snow
+      REAL(ireals), INTENT(OUT) :: T_snow_out, T_ice_out, T_mnw_out, T_wML_out, T_bot_out, T_B1_out, &
+                                   C_T_out, h_snow_out, h_ice_out, h_ML_out, H_B1_out, T_sfc_n
+    END SUBROUTINE flake_interface
+  END INTERFACE
 
   ! Namelist parameters
   REAL(ireals) :: del_time_lk = 86400.0_ireals
@@ -103,10 +128,10 @@ PROGRAM flake_cli
       PRINT '(A)', '  flake [namelist_file.nml]'
       PRINT '(A)', ''
       PRINT '(A)', 'Namelists expected in configuration file:'
-      PRINT '(A)', '  &SIMULATION_PARAMS (del_time_lk, time_step_number, save_interval_n, T_wML_in, T_bot_in, h_ML_in)'
+      PRINT '(A)', '  &SIMULATION_PARAMS (del_time_lk, time_step_number, save_interval_n, T_wML_in, T_bot_in, h_ML_in, yearlength, niter_per_max)'
       PRINT '(A)', '  &METEO             (z_wind_m, z_Taqa_m, z_Tw_m, meteofile, outputfile)'
-      PRINT '(A)', '  &LAKE_PARAMS       (depth_w_lk, fetch_lk, sediments_on, depth_bs_lk, T_bs_lk, latitude_lk)'
-      PRINT '(A)', '  &TRANSPARENCY      (nband_optic, frac_optic, extincoef_optic)'
+      PRINT '(A)', '  &LAKE_PARAMS       (depth_w_lk, fetch_lk, sediments_on, depth_bs_lk, T_bs_lk, latitude_lk, c_relax_c)'
+      PRINT '(A)', '  &TRANSPARENCY      (nband_optic, frac_optic, extincoef_optic, gamin, gamax, m1, m2, sigm, variablegamma, oldreplace)'
       PRINT '(A)', ''
       PRINT '(A)', 'Example:'
       PRINT '(A)', '  flake examples/Heiligensee80-96/Heiligensee80-96.nml'
@@ -180,6 +205,20 @@ PROGRAM flake_cli
     resolved_outputfile = TRIM(nml_dir) // TRIM(outputfile)
   END IF
 
+  ! Validate simulation inputs
+  IF (save_interval_n <= 0) THEN
+    WRITE(*, '(A)') 'Warning: save_interval_n must be positive. Defaulting to 1.'
+    save_interval_n = 1
+  END IF
+  IF (extincoef_optic <= 0.0_ireals) THEN
+    WRITE(*, '(A)') 'Warning: extincoef_optic must be positive. Defaulting to 1.0.'
+    extincoef_optic = 1.0_ireals
+  END IF
+  IF (nband_optic < 1 .OR. nband_optic > 10) THEN
+    WRITE(*, '(A)') 'Warning: nband_optic must be between 1 and 10. Defaulting to 1.'
+    nband_optic = 1
+  END IF
+
   ! Coriolis parameter
   par_coriolis = 2.0_ireals * omega_earth * SIN(latitude_lk * pi / 180.0_ireals)
 
@@ -189,12 +228,13 @@ PROGRAM flake_cli
   T_bot  = T_bot_in + tpl_T_f
   h_ML   = h_ML_in
   C_T    = 0.5_ireals
-  T_mnw  = T_wML - (1.0_ireals - h_ML/depth_w_lk) * (1.0_ireals - C_T) * (T_wML - T_bot)
+  T_mnw  = T_wML - (1.0_ireals - h_ML/depth_w_lk) * C_T * (T_wML - T_bot)
   h_ice  = 0.0_ireals
   h_snow = 0.0_ireals
   T_ice  = tpl_T_f
   T_snow = tpl_T_f
 
+  lflk_botsed_use = sediments_on
   IF (sediments_on) THEN
     H_B1 = depth_bs_lk
     T_B1 = T_bs_lk + tpl_T_f
@@ -205,6 +245,9 @@ PROGRAM flake_cli
 
   opt_w = opticpar_water_ref
   opt_w%extincoef_optic(1) = extincoef_optic
+  ! Ice and snow optics are not configurable via the namelist; set them to the
+  ! opaque defaults explicitly. flake_interface preserves caller-provided
+  ! optical parameters, so uninitialized derived types must never be passed.
   opt_i = opticpar_ice_opaque
   opt_s = opticpar_snow_opaque
   alb_w = albedo_water_ref
@@ -259,18 +302,26 @@ PROGRAM flake_cli
 
     CALL flake_interface(dMsnow_in, I_atm_in, Q_lw_in, z_wind_m(1), z_Taqa_m(1), &
                          U_a_in, T_a_k, q_a_in, P_a, &
-                         depth_w_lk, fetch_lk, H_B1, T_B1, par_coriolis, del_time_lk, &
+                         depth_w_lk, fetch_lk, depth_bs_lk, T_bs_lk + tpl_T_f, par_coriolis, del_time_lk, &
                          T_snow, T_ice, T_mnw, T_wML, T_bot, T_B1, &
                          C_T, h_snow, h_ice, h_ML, H_B1, T_sfc, &
                          alb_w, alb_i, alb_s, opt_w, opt_i, opt_s, &
                          T_snow_o, T_ice_o, T_mnw_o, T_wML_o, T_bot_o, T_B1_o, &
                          C_T_o, h_snow_o, h_ice_o, h_ML_o, H_B1_o, T_sfc_o)
 
-    ! Diagnostics
+    ! Diagnostics: Q_mom/Q_sens/Q_lat are not returned by flake_interface, so
+    ! SfcFlx_momsenlat is repeated here for output purposes with the same
+    ! inputs as the physics (previous-step surface temperature T_sfc).
     CALL SfcFlx_momsenlat(z_wind_m(1), z_Taqa_m(1), fetch_lk, &
                           U_a_in, T_a_k, q_a_in, T_sfc, P_a, h_ice, &
                           Q_mom, Q_sens, Q_lat, Q_watvap)
-    rho_air = P_a / (287.058_ireals * T_a_k)
+    ! Air density at the surface, matching the density used inside
+    ! SfcFlx_momsenlat: saturation specific humidity at T_sfc, then
+    ! SfcFlx_rhoair(T_s, q_s, P_a). Using the dry-air density at air
+    ! temperature would be inconsistent with Q_mom.
+    rho_air = SfcFlx_rhoair(T_sfc, &
+                            SfcFlx_spechum(SfcFlx_satwvpres(T_sfc, h_ice), P_a), &
+                            P_a)
     ufr_a   = SQRT(MAX(0.0_ireals, -Q_mom / rho_air))
     ufr_w   = u_star_w_flk
     Wconv   = w_star_sfc_flk

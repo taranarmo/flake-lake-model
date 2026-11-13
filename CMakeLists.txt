@@ -6,12 +6,12 @@ project(FLake
   LANGUAGES Fortran
 )
 
-set(CMAKE_Fortran_STANDARD 90)
-set(CMAKE_Fortran_STANDARD_REQUIRED ON)
-
 # Compiler warnings and optimization flags
 if(CMAKE_Fortran_COMPILER_ID MATCHES "GNU")
-  add_compile_options(-O3 -fPIC -ffree-line-length-none)
+  add_compile_options(-fPIC -ffree-line-length-none)
+  if(NOT CMAKE_BUILD_TYPE)
+    set(CMAKE_BUILD_TYPE Release CACHE STRING "Choose the type of build." FORCE)
+  endif()
 endif()
 
 # Core library sources (in compilation order)

@@ -26,9 +26,15 @@ const imports = {
     exp: Math.exp,
     pow: Math.pow,
     _lcompilers_snprintf_alloc: () => 0,
-    _lcompilers_runtime_error_exit: (code) => console.error("FLake WASM runtime error exit:", code),
-    _lcompilers_runtime_error: (msg) => console.error("FLake WASM runtime error:", msg),
-    exit: (code) => console.warn("FLake WASM exit called with code:", code)
+    _lcompilers_runtime_error_exit: (code) => {
+      throw new Error(`FLake WASM runtime error exit: ${code}`);
+    },
+    _lcompilers_runtime_error: (msg) => {
+      throw new Error(`FLake WASM runtime error: ${msg}`);
+    },
+    exit: (code) => {
+      throw new Error(`FLake WASM exit called with code: ${code}`);
+    }
   }
 };
 
@@ -45,11 +51,25 @@ WebAssembly.instantiate(wasmBytes, imports).then(({ instance }) => {
   }
 
   const memory = exp.memory;
-  const mv = new DataView(memory.buffer);
+  let mv = new DataView(memory.buffer);
 
-  // Allocate 64-bit float slots in linear memory
-  let ptr = 4096;
+  // Allocate 64-bit float slots in linear memory.
+  // Start well above the module's static data: __heap_base (exported via
+  // --export-all) marks the beginning of the free heap region. A fixed low
+  // base such as 4096 can collide with the module's data segment, which
+  // grows as more module state becomes stored (non-PARAMETER) variables.
+  const heapBaseGlobal = exp.__heap_base;
+  let ptr = (heapBaseGlobal && typeof heapBaseGlobal.value === "number")
+    ? Math.ceil(heapBaseGlobal.value / 8) * 8
+    : 0;
+
   function allocDouble(val = 0.0) {
+    // Grow the memory if the allocation would exceed its bounds; growth
+    // detaches the old buffer, so the view must be re-created.
+    if (ptr + 8 > memory.buffer.byteLength) {
+      memory.grow(1);
+      mv = new DataView(memory.buffer);
+    }
     const p = ptr;
     ptr += 8;
     mv.setFloat64(p, val, true);
@@ -57,11 +77,25 @@ WebAssembly.instantiate(wasmBytes, imports).then(({ instance }) => {
   }
 
   function allocOptic(extin = 1.0) {
+    // Match wasm32 ABI layout for TYPE(opticpar_medium):
+    // 4-byte integer nband_optic + 4-byte alignment padding +
+    // 10 * 8-byte frac_optic + 10 * 8-byte extincoef_optic = 168 bytes.
+    const size = 168;
+    while (ptr + size > memory.buffer.byteLength) {
+      memory.grow(1);
+      mv = new DataView(memory.buffer);
+    }
     const p = ptr;
-    ptr += 4 + 10 * 8 + 10 * 8; // nband + fractions + extincoefs
+    ptr += size;
     mv.setInt32(p, 1, true);
-    mv.setFloat64(p + 4, 1.0, true);
-    mv.setFloat64(p + 4 + 80, extin, true);
+    mv.setFloat64(p + 8, 1.0, true);
+    for (let i = 1; i < 10; i++) {
+      mv.setFloat64(p + 8 + i * 8, 0.0, true);
+    }
+    mv.setFloat64(p + 88, extin, true);
+    for (let i = 1; i < 10; i++) {
+      mv.setFloat64(p + 88 + i * 8, 1e7, true);
+    }
     return p;
   }
 
@@ -135,6 +169,10 @@ WebAssembly.instantiate(wasmBytes, imports).then(({ instance }) => {
     p_T_snow_out, p_T_ice_out, p_T_mnw_out, p_T_wML_out, p_T_bot_out, p_T_B1_out,
     p_C_T_out, p_h_snow_out, p_h_ice_out, p_h_ML_out, p_H_B1_out, p_T_sfc_n
   );
+
+  // The memory buffer may have been detached (and a new one allocated) if the
+  // module grew its memory during the call - re-create the view before reads.
+  mv = new DataView(memory.buffer);
 
   const T_sfc_n_val = mv.getFloat64(p_T_sfc_n, true) - K;
   const T_wML_val   = mv.getFloat64(p_T_wML_out, true) - K;

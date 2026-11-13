@@ -14,9 +14,16 @@ command -v wasm-ld >/dev/null 2>&1 || { echo "Error: wasm-ld is not found in PAT
 command -v node >/dev/null 2>&1 || { echo "Error: node is not found in PATH"; exit 1; }
 
 mkdir -p "${BUILD_DIR}"
+rm -f "${BUILD_DIR}"/*.o "${BUILD_DIR}"/*.mod "${BUILD_DIR}"/*.ll "${BUILD_DIR}"/flake.wasm
 cd "${BUILD_DIR}"
 
 echo "Compiling Fortran 90 modules with lfortran..."
+# NOTE: all modules are compiled with plain `lfortran -c` (emitting .mod files
+# and native objects that are discarded); lfortran then emits the complete
+# program - the interface and every used module's code and state - into the
+# single flake_interface object. DO NOT link separate per-module objects:
+# lfortran re-emits used modules' globals into each object, so multi-object
+# linking would duplicate the physics state instead of sharing it.
 for mod in data_parameters.f90 flake_derivedtypes.f90 flake_parameters.f90 \
            flake_configure.f90 flake_albedo_ref.f90 flake_paramoptic_ref.f90 \
            flake.f90 SfcFlx.f90; do

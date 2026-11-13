@@ -9,6 +9,7 @@ COPY . .
 RUN cmake -B build -DCMAKE_BUILD_TYPE=Release \
     && cmake --build build -j$(nproc) \
     && ctest --test-dir build --output-on-failure \
+    && rm -f examples/*/*.rslt \
     && cmake --install build --prefix=/install
 
 FROM alpine:3.20

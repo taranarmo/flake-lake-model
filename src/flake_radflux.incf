@@ -128,7 +128,7 @@ INTEGER (KIND = iintegers) :: & ! Help variable(s)
     I_intm_0_h_flk = 0._ireals
     DO i=1, opticpar_water%nband_optic
       I_intm_0_h_flk = I_intm_0_h_flk +                                &
-      opticpar_water%frac_optic(i)/opticpar_water%extincoef_optic(i)*  &
+      opticpar_water%frac_optic(i)/MAX(opticpar_water%extincoef_optic(i), 1.0E-6_ireals)*  &
       (1._ireals - EXP(-opticpar_water%extincoef_optic(i)*h_ML_p_flk))
     END DO 
     I_intm_0_h_flk = I_w_flk*I_intm_0_h_flk/h_ML_p_flk
@@ -140,7 +140,7 @@ INTEGER (KIND = iintegers) :: & ! Help variable(s)
     I_intm_h_D_flk = 0._ireals 
     DO i=1, opticpar_water%nband_optic
       I_intm_h_D_flk = I_intm_h_D_flk +                                &
-      opticpar_water%frac_optic(i)/opticpar_water%extincoef_optic(i)*  &
+      opticpar_water%frac_optic(i)/MAX(opticpar_water%extincoef_optic(i), 1.0E-6_ireals)*  &
       ( EXP(-opticpar_water%extincoef_optic(i)*h_ML_p_flk)             &
       - EXP(-opticpar_water%extincoef_optic(i)*depth_w) )
     END DO 
